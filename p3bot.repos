@@ -1,0 +1,17 @@
+repositories:
+  robocomp-shadow:
+    type: git
+    url: https://github.com/robocomp/robocomp-shadow.git
+    version: main
+  manipulation_kinova_gen3:
+    type: git
+    url: https://github.com/robocomp/manipulation_kinova_gen3.git
+    version: P3Bot
+  robocomp-robolab:
+    type: git
+    url: https://github.com/robocomp/robocomp-robolab.git
+    version: master
+  webots-p3bot:
+    type: git
+    url: https://github.com/SergioTrac/webots-p3bot.git
+    version: master
