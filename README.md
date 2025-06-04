@@ -2,5 +2,5 @@
 
 ## Dependencies
 ```bash
-vcs import $ROBOCOMP/componets < p3bot.repos --recursive
+vcs import $ROBOCOMP/components < p3bot.repos --recursive
 ```

@@ -13,5 +13,5 @@ repositories:
     version: master
   webots-p3bot:
     type: git
-    url: https://github.com/SergioTrac/webots-p3bot.git
-    version: master
+    url: git@github.com:SergioEslava-UEx/webots-p3bot.git
+    version: main
