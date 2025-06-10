@@ -1,0 +1,2 @@
+ATTRS{serial}=="A10MPAB5", SUBSYSTEM=="tty", SYMLINK="Driver_base", MODE="666"
+ATTRS{serial}=="VE7X78XB", SUBSYSTEM=="tty", SYMLINK="Victron", MODE="666"
