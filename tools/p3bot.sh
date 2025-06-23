@@ -15,10 +15,17 @@ fi
 COMPILE="cmake -B build && make -C build -j$(( $(nproc) / 2 ))"
 
 declare -A COMPONENTS=(
-    ["Helios"]="cd $ROBOCOMP/components/robocomp-robolab/components/hardware/laser/lidar3D && $COMPILE && bin/Lidar3D etc/config_helios_flip"
+    ["RcNode"]="rcnode"
+    ["Ricoh"]="cd $ROBOCOMP/components/robocomp-robolab/components/hardware/camera/ricoh_omni && $COMPILE && bin/RicohOmni etc/config"
+    ["Helios"]="cd $ROBOCOMP/components/robocomp-robolab/components/hardware/laser/lidar3D && $COMPILE && bin/Lidar3D etc/config_p3bot"
+    ["360 fusion"]="cd $ROBOCOMP/components/robocomp-shadow/insect/RGBD_360 && $COMPILE && bin/RGBD_360 etc/config"
+    ["Segmented lidar"]="cd $ROBOCOMP/components/robocomp-shadow/components/segmented_lidar && $COMPILE && bin/segmented_lidar etc/config"
     ["Joystick"]="cd $ROBOCOMP/components/robocomp-robolab/components/hardware/external_control/python_xbox_controller && $COMPILE && bin/python_xbox_controller etc/config_p3bot"
     ["Base"]="cd $ROBOCOMP/components/robocomp-shadow/components/SVD48VBase/ && $COMPILE && bin/SVD48VBase etc/config_omnidirectional"
     ["ZED"]="cd $ROBOCOMP/components/robocomp-shadow/insect/zed_component && $COMPILE && bin/zed_component etc/config"
+    ["GTSAM"]="cd $ROBOCOMP/components/robocomp-shadow/agents/gtsam_agent_c && $COMPILE && bin/gtsam_agent_c etc/config"
+    ["Room detector"]="cd $ROBOCOMP/components/robocomp-shadow/agents/room_detector && $COMPILE && bin/room_detector etc/config"
+    ["LTSM"]="cd $ROBOCOMP/components/robocomp-shadow/agents/long_term_spatial_memory_agent && $COMPILE && bin/long_term_spatial_memory_agent etc/config"
     # ["Camera_kinova_right"]="cd $ROBOCOMP/components/manipulation_kinova_gen3/components/camera_kinova && $COMPILE && bin/camera_kinova etc/config_brazo_pedro"
     # ["Camera_kinova_left"]="cd $ROBOCOMP/components/manipulation_kinova_gen3/components/camera_kinova && $COMPILE && bin/camera_kinova etc/config_brazo_pablo"
     # ["Contactile"]="cd $ROBOCOMP/components/robocomp-robolab/components/hardware/tactile/contactile && $COMPILE && bin/contactile etc/config"
