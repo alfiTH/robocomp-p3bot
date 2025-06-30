@@ -15,13 +15,16 @@ fi
 COMPILE="cmake -B build && make -C build -j$(( $(nproc) / 2 ))"
 
 declare -A COMPONENTS=(
-    ["Helios"]="cd $ROBOCOMP/components/robocomp-robolab/components/hardware/laser/lidar3D && $COMPILE && bin/Lidar3D etc/config_helios_flip"
+    ["Rcnode"]="rcnode"
+    ["Webots"]="webots"
+    ["Bridge"]="cd $ROBOCOMP/components/webots-p3bot/components/p3bot-bridge && $COMPILE && bin/P3BotBridge etc/config"
+    ["Helios"]="cd $ROBOCOMP/components/robocomp-robolab/components/hardware/laser/lidar3D && $COMPILE && bin/Lidar3D etc/config_helios_webots"
     ["Joystick"]="cd $ROBOCOMP/components/robocomp-robolab/components/hardware/external_control/python_xbox_controller && $COMPILE && bin/python_xbox_controller etc/config_p3bot"
-    ["Bridge"]="cd $ROBOCOMPcomponents/webots-p3bot/components/p3bot-bridge && $COMPILE && bin/P3BotBridge etc/config"
+    # ["Bridge"]="cd $ROBOCOMPcomponents/webots-p3bot/components/p3bot-bridge && $COMPILE && bin/P3BotBridge etc/config"
     # ["Camera_kinova_right"]="cd $ROBOCOMP/components/manipulation_kinova_gen3/components/camera_kinova && $COMPILE && bin/camera_kinova etc/config_brazo_pedro"
     # ["Camera_kinova_left"]="cd $ROBOCOMP/components/manipulation_kinova_gen3/components/camera_kinova && $COMPILE && bin/camera_kinova etc/config_brazo_pablo"
     # ["Contactile"]="cd $ROBOCOMP/components/robocomp-robolab/components/hardware/tactile/contactile && $COMPILE && bin/contactile etc/config"
-    ["Body_controller"]="cd $ROBOCOMP/components/manipulation_kinova_gen3/agents/body_controller && $COMPILE && bin/body_controller etc/config"
+    ["Body_controller"]="cd $ROBOCOMP/components/manipulation_kinova_gen3/agents/body_controller && $COMPILE && bin/body_controller etc/config_sim"
 )
 
 function show_tabs() {
