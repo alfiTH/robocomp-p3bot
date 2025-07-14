@@ -22,14 +22,16 @@ declare -A COMPONENTS=(
     ["Segmented lidar"]="cd $ROBOCOMP/components/robocomp-shadow/components/segmented_lidar && $COMPILE && bin/segmented_lidar etc/config"
     ["Joystick"]="cd $ROBOCOMP/components/robocomp-robolab/components/hardware/external_control/python_xbox_controller && $COMPILE && bin/python_xbox_controller etc/config_p3bot"
     ["Base"]="cd $ROBOCOMP/components/robocomp-shadow/components/SVD48VBase/ && $COMPILE && bin/SVD48VBase etc/config_omnidirectional"
-    ["ZED"]="cd $ROBOCOMP/components/robocomp-shadow/insect/zed_component && $COMPILE && bin/zed_component etc/config"
+    # ["ZED"]="cd $ROBOCOMP/components/robocomp-shadow/insect/zed_component && $COMPILE && bin/zed_component etc/config"
     ["GTSAM"]="cd $ROBOCOMP/components/robocomp-shadow/agents/gtsam_agent_c && $COMPILE && bin/gtsam_agent_c etc/config"
-    ["Room detector"]="cd $ROBOCOMP/components/robocomp-shadow/agents/room_detector && $COMPILE && bin/room_detector etc/config"
+    ["Room"]="cd $ROBOCOMP/components/robocomp-shadow/agents/room_detector && $COMPILE && bin/room_detector etc/config"
     ["LTSM"]="cd $ROBOCOMP/components/robocomp-shadow/agents/long_term_spatial_memory_agent && $COMPILE && bin/long_term_spatial_memory_agent etc/config"
     # ["Camera_kinova_right"]="cd $ROBOCOMP/components/manipulation_kinova_gen3/components/camera_kinova && $COMPILE && bin/camera_kinova etc/config_brazo_pedro"
     # ["Camera_kinova_left"]="cd $ROBOCOMP/components/manipulation_kinova_gen3/components/camera_kinova && $COMPILE && bin/camera_kinova etc/config_brazo_pablo"
     # ["Contactile"]="cd $ROBOCOMP/components/robocomp-robolab/components/hardware/tactile/contactile && $COMPILE && bin/contactile etc/config"
-    ["Body_controller"]="cd $ROBOCOMP/components/manipulation_kinova_gen3/agents/body_controller && $COMPILE && bin/body_controller etc/config"
+    ["kinova_left"]="cd $ROBOCOMP/components/manipulation_kinova_gen3/agents/kinova_controller_cpp && $COMPILE && bin/kinova_controller_cpp etc/config_brazo_pablo"
+    ["kinova_right"]="cd $ROBOCOMP/components/manipulation_kinova_gen3/agents/kinova_controller_cpp && $COMPILE && bin/kinova_controller_cpp etc/config_brazo_pedro"
+    ["Body_control"]="cd $ROBOCOMP/components/manipulation_kinova_gen3/agents/body_controller && $COMPILE && bin/body_controller etc/config"
     
 )
 
