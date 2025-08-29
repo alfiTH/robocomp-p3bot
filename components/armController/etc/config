@@ -1,0 +1,32 @@
+# This property is used by the clients to connect to IceStorm.
+Proxies.TopicManager = "IceStorm/TopicManager:default -p 9999"
+
+
+# Proxies for publishes interfaces
+Proxies.KinovaArmPubPrefix = "left"
+Proxies.KinovaArmPubPrefix1 = "right"
+
+
+# Proxies for required interfaces
+Proxies.KinovaArm = "kinovaarm:tcp -h localhost -p 10005"
+Proxies.KinovaArm1 = "kinovaarm:tcp -h localhost -p 10006"
+
+
+# Endpoints for subscriptions interfaces
+Endpoints.VRControllerPubTopic = "tcp -p 0"
+Endpoints.VRControllerPubPrefix = ""
+
+
+Period.Compute = 50
+Period.Emergency = 500
+
+Ice.Warn.Connections = "0"
+Ice.Trace.Network = "0"
+Ice.Trace.Protocol = "0"
+Ice.MessageSizeMax = "20004800"
+
+
+
+simulated = true
+directKinematic = false
+

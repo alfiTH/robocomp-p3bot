@@ -1,0 +1,15 @@
+import "KinovaArm.idsl";
+import "KinovaArmPub.idsl";
+import "VRControllerPub.idsl";
+
+Component armController
+{
+    Communications
+    {
+        requires KinovaArm, KinovaArm;
+        subscribesTo VRControllerPub;
+        publishes KinovaArmPub, KinovaArmPub;
+    };
+    language python;
+};
+
