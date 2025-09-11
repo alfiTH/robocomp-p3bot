@@ -17,7 +17,7 @@ Endpoints.VRControllerPubTopic = "tcp -p 0"
 Endpoints.VRControllerPubPrefix = ""
 
 
-Period.Compute = 50
+Period.Compute = 25
 Period.Emergency = 500
 
 Ice.Warn.Connections = "0"
@@ -28,5 +28,5 @@ Ice.MessageSizeMax = "20004800"
 
 
 simulated = true
-directKinematic = false
+directKinematic = False
 

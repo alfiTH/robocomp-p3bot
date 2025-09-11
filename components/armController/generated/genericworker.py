@@ -32,8 +32,13 @@ class GenericWorker(QtCore.QObject):
 
         self.kinovaarm_proxy = mprx["KinovaArm"]
         self.kinovaarm1_proxy = mprx["KinovaArm1"]
+        self.kinovaarm_proxy = mprx["KinovaArm"]
+        self.kinovaarm1_proxy = mprx["KinovaArm1"]
         self.kinovaarmpub_proxy = mprx["KinovaArmPub"]
         self.kinovaarmpub1_proxy = mprx["KinovaArmPub1"]
+        self.kinovaarmpub_proxy = mprx["KinovaArmPub"]
+        self.kinovaarmpub1_proxy = mprx["KinovaArmPub1"]
+
         self.configData = configData
 
         self.Period = 30
