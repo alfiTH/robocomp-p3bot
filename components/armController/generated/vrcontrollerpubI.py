@@ -42,5 +42,5 @@ class VRControllerPubI(VRControllerPub):
     def sendControllers(self, left, right, ice):
         return getattr(self.worker, f"VRControllerPub{self.id}_sendControllers")(left, right)
 
-    def sendPose(self, head, left, right, ice):
-        return getattr(self.worker, f"VRControllerPub{self.id}_sendPose")(head, left, right)
+    def sendPoses(self, head, left, right, ice):
+        return getattr(self.worker, f"VRControllerPub{self.id}_sendPoses")(head, left, right)

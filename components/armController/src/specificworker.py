@@ -33,6 +33,9 @@ from genericworker import *
 import interfaces as ifaces
 import math
 
+from scipy.spatial.transform import Rotation as R
+
+
 
 import swift
 import roboticstoolbox as rtb
@@ -57,15 +60,12 @@ class SpecificWorker(GenericWorker):
         assert isinstance(self.directKinematic, bool), f"directKinematic must be bool, dont {type(self.directKinematic)}"
 
 
-        self.left = np.array((0,0,0,0,0,0))
-        self.right = np.array((0,0,0,0,0,0))
 
         self.pose = None
-
-        self.cubes_positions = [sm.SE3.Trans(0.0, 0.0, 0.20), sm.SE3.Trans(-0.10, 0, 0.7), sm.SE3.Trans(-0.125, -0., 1)]
-        self.collisions = [sg.Cuboid((0.46, 0.46, 0.40), pose=self.cubes_positions[0], color=(1, 0, 0)),
-                           sg.Cuboid((0.20, 0.20, 0.750), pose=self.cubes_positions[1], color=(1, 0, 0)),
-                           sg.Cuboid((0.10, 0.10, 0.750), pose=self.cubes_positions[2], color=(1, 0, 0))]
+        # self.cubes_positions = [sm.SE3.Trans(0.0, 0.0, 0.20), sm.SE3.Trans(-0.10, 0, 0.7), sm.SE3.Trans(-0.125, -0., 1)]
+        # self.collisions = [sg.Cuboid((0.46, 0.46, 0.40), pose=self.cubes_positions[0], color=(1, 0, 0)),
+        #                 sg.Cuboid((0.20, 0.20, 0.750), pose=self.cubes_positions[1], color=(1, 0, 0)),
+        #                 sg.Cuboid((0.10, 0.10, 0.750), pose=self.cubes_positions[2], color=(1, 0, 0))]
         
         self.gain = np.array([1, 1, 1, 1.6, 1.6, 1.6])
 
@@ -81,42 +81,52 @@ class SpecificWorker(GenericWorker):
             self.env.launch(realtime=True)
             self.env.set_camera_pose([-2, 3, 0.7], [-2, 0.0, 0.5])
 
-            for colision in self.collisions:
-                self.env.add(colision)
+            # for colision in self.collisions:
+            #     self.env.add(colision)
 
             #region P3Bot
             # self.p3bot = Robot.URDF("/home/robolab/software/robotics-toolbox-python/rtb-data/rtbdata/xacro/p3bot_description/urdf/P3Bot_scaled.urdf")
             self.p3bot = rtb.models.P3Bot()
-            self.p3bot.qdlim = [0]*2+[0.5]*14
+            print(self.p3bot.qdlim)
+
+            self.p3bot.qdlim = [0]*2 + [1.5]*14
+            print(self.p3bot.qdlim)
+
+            self.bodyOffset = sm.SE3.Rz(3.14)
+            self.targetOffset = sm.SE3.Rz(np.deg2rad(180)) * sm.SE3.Ry(np.deg2rad(180)) 
 
             T = sm.SE3(0, 0, 0.04)
-            Rz = sm.SE3.Rz(1.57)
+            Rz = sm.SE3.Rz(3.14)
             self.p3bot.base = T * Rz
             self.env.add(self.p3bot)
             #endregion
             #region Tool Points
+            self.collisions_tool = []
             for i in range(2):
-                self.p3bot.grippers[i].tool *= sm.SE3.Tz(0.135)
+                self.p3bot.grippers[i].tool *= sm.SE3.Tz(0.135) * sm.SE3.Rz(np.deg2rad(180))
                 frame = sg.Axes(0.1, pose=self.p3bot.grippers[i].tool)
                 frame.attach_to(self.p3bot.grippers[i].links[0])
                 self.env.add(frame)
+
+                self.collisions_tool.append(sg.Cuboid((0.12, 0.15, 0.2), pose=self.p3bot.grippers[i].tool, color=(1, 0, 0,0.25)),)
+                self.env.add(self.collisions_tool[i])
             #endregion
 
             #region getGoal
             self.goal_axes = [sg.Axes(0.1), sg.Axes(0.1)]
-            self.deadManButton = [True, True]
+            self.deadManButton = [False, False]
             self.target = [None, None]
-
-            # self.change_target(0, np.array((224.0,500.0,1000.0)), np.array((1.175,-1.559,3.1416)))
-            # self.change_target(1, np.array((-224.0,500.0,1000.0)), np.array((1.175,-1.559,3.1416)))
+            self.poseController = [np.array((0,0,0,0,0,0)), np.array((0,0,0,0,0,0))]
             #endregion
 
             self.home =  np.radians(np.array([[40,-120,60,-130,-20,-65, 85], [-40,-120,-60,-130,20,-65, 85]], dtype=np.float64))
             self.pick =  np.radians(np.array([[90,-120,80,-130,-20, 45, 95], [-90,-120,-80,-130, 20, 45, 85]], dtype=np.float64))
             self.set_all_joints(self.pick)
+            for i in range(2): self.update_collisions_tool(self.p3bot, i)
+
 
             
-            live.start()
+            # live.start()
             self.timer.timeout.connect(self.compute)
             self.timer.start(self.Period)
 
@@ -179,25 +189,29 @@ class SpecificWorker(GenericWorker):
     @QtCore.Slot()
     def compute(self):
         # #Update pose in swift
-        # if self.pose is not None:
-        #     T = sm.SE3(self.pose[0:3])
-        #     RPY = sm.SE3.RPY(self.pose[3:6])
-        #     self.pose = None
-        #     self.p3bot.base = T * RPY
-        # for arm in range(len(self.kinova_pub_arms)):
-        #     self.p3bot.q[2 + arm * 7 : 9 + arm * 7] = self.get_joints(arm)
-        #     self.kinova_pub_arms[arm].sendJointsWithAngle(ifaces.RoboCompKinovaArm.TJointAngles(np.array(self.p3bot.q[2 + arm * 7 : 9 + arm * 7], dtype=np.float32)))
+        if self.pose is not None:
+            T = sm.SE3(self.pose[0:3])
+            # T = sm.SE3()
+            q = sm.UnitQuaternion(self.pose[3:])
+            R = q.SE3()
+            self.pose = None
+            self.p3bot.base = T *self.bodyOffset * R
+        for arm in range(len(self.kinova_pub_arms)):
+            self.p3bot.q[2 + arm * 7 : 9 + arm * 7] = self.get_joints(arm)
+            self.kinova_pub_arms[arm].sendJointsWithAngle(ifaces.RoboCompKinovaArm.TJointAngles(np.array(self.p3bot.q[2 + arm * 7 : 9 + arm * 7], dtype=np.float32)))
 
-        self.update_collisions(self.p3bot.base)
-
+        # self.update_collisions(self.p3bot.base)
+    
         #Go to target
         for arm in range(2):
-            if self.deadManButton[arm] and self.target[arm] is not None:
+            if self.deadManButton[arm]:
+                self.change_target(arm, self.poseController[arm][:3], self.poseController[arm][3:])
+                self.update_collisions_tool(self.p3bot, arm)
 
                 if self.directKinematic:                
                     arrived, qd = self.direct_kinematic_robot(self.p3bot, arm, self.target[arm].A)
                 else:
-                    arrived, qd = self.step_robot(self.p3bot, arm, self.target[arm].A)
+                    arrived, qd = self.step_robot(self.p3bot, arm, self.target[arm].A, self.collisions_tool[arm])
 
 
                 # qd[2:] = [0]*(len(qd)-2)
@@ -350,7 +364,8 @@ class SpecificWorker(GenericWorker):
 
         Raises:
             AssertionError: If the arm index is out of bounds.
-            Exception: If fetching joint angles fails (logged to console).
+            Exception: If fetching joint angles fails (logged to console).            q = sm.UnitQuaternion(rot)
+            R = q.SE3()
         """
         assert self.simulated or arm < len(self.kinova_arms), f"Robot has {len(self.kinova_arms)} arms, tried to access arm {arm + 1}"
         try:
@@ -371,16 +386,22 @@ class SpecificWorker(GenericWorker):
         for i in range(len(self.collisions)):
             self.collisions[i].T = pose * self.cubes_positions[i]
 
+    def update_collisions_tool(self, r:rtb.ERobot, gripperSelect:int):
+        gripper = r.grippers[gripperSelect]   # por ejemplo
+        wTe = r.fkine(r.q, end=gripper)
+        self.collisions_tool[gripperSelect].T = wTe * sm.SE3([-0.02, 0, -0.07])
+        
+
     def change_target(self, arm:int, translate:np.ndarray, rot:np.ndarray):
         if self.deadManButton[arm]:
-            print(f"Changed goal {translate}, {rot}")
-            # Change the target position of the end-effector
             T = sm.SE3(translate*SCALE)
-            RPY = sm.SE3.RPY(rot)
-
-            self.target[arm] = T * RPY
+            q = sm.UnitQuaternion(rot)
+            R = q.SE3()
+            
+            self.target[arm] = T * self.targetOffset * R 
             self.goal_axes[arm].T = self.target[arm]
             self.env.add(self.goal_axes[arm])
+
 
     def direct_kinematic_robot(self, r: rtb.ERobot, gripperSelect, Tep):
         gripper = r.grippers[gripperSelect]
@@ -393,8 +414,9 @@ class SpecificWorker(GenericWorker):
                                         
         return arrived, qd
         
-    def step_robot(self, r: rtb.ERobot, gripperSelect, Tep, collisions=True):
-        colli = [["right_arm_shoulder_link", "right_arm_spherical_wrist_2_link"],["left_arm_shoulder_link", "left_arm_spherical_wrist_2_link"]]
+    def step_robot(self, r: rtb.ERobot, gripperSelect, Tep, collision):
+        collision_body = [["low_body", "right_arm_spherical_wrist_2_link"],["left_arm", "left_arm_spherical_wrist_2_link"]]
+        # colli = [["right_arm_shoulder_link", "right_arm_spherical_wrist_2_link"],["left_arm_shoulder_link", "left_arm_spherical_wrist_2_link"]]
         n = 9
         gripper = r.grippers[gripperSelect]
         ets = r.ets(end=gripper)
@@ -404,8 +426,6 @@ class SpecificWorker(GenericWorker):
 
         # Spatial error
         et = np.sum(np.abs(eTep[:3, -1]))
-
-        # print("Spatial error: ", et)
 
         # Gain term (lambda) for control minimisation
         Y = 0.01
@@ -447,28 +467,27 @@ class SpecificWorker(GenericWorker):
         vel_decay = 1
 
         #################COLISIONS##################
-        if collisions:
-            for i, collision in enumerate(self.collisions):
-                c_Ain, c_bin = self.p3bot.link_collision_damper(
-                        collision,
-                        self.p3bot.q,
-                        di=0.1, # Distancia mínima más pequeña (ej: 0.1 metros)
-                        ds=0.05, # Ganancia más alta (ej: 0.1)
-                        xi=1, # Mayor peso en la optimización
-                        start= self.p3bot.link_dict[colli[gripperSelect][0]], 
-                        end= self.p3bot.link_dict[colli[gripperSelect][1]]
-                    )
+        for i, body in enumerate(collision_body):
+            c_Ain, c_bin = self.p3bot.link_collision_damper(
+                    collision,
+                    self.p3bot.q,
+                    di=0.1, # Distancia mínima más pequeña (ej: 0.1 metros)
+                    ds=0.05, # Ganancia más alta (ej: 0.1)
+                    xi=1, # Mayor peso en la optimización
+                    start= self.p3bot.link_dict[body[0]], 
+                    end= self.p3bot.link_dict[body[1]]
+                )
 
-                # If there are any parts of the robot within the influence distance
-                # to the collision in the scene
-                if c_Ain is not None and c_bin is not None:
-                    c_Ain = np.c_[c_Ain, np.zeros((c_Ain.shape[0], n + 6 - c_Ain.shape[1]))]
-                    # print(f"{i}, colision {c_Ain.shape}, {c_bin.shape}")
-                    # if len(c_Ain) > 1 : vel_decay +=len(c_bin)*2
+            # If there are any parts of the robot within the influence distance
+            # to the collision in the scene
+            if c_Ain is not None and c_bin is not None:
+                c_Ain = np.c_[c_Ain, np.zeros((c_Ain.shape[0], n + 6 - c_Ain.shape[1]))]
+                print(f"{i}, colision {c_Ain.shape}, {c_bin.shape}")
+                # if len(c_Ain) > 1 : vel_decay +=len(c_bin)*2
 
-                    # Stack the inequality constraints
-                    Ain = np.r_[Ain, c_Ain]
-                    bin = np.r_[bin, c_bin]
+                # Stack the inequality constraints
+                Ain = np.r_[Ain, c_Ain]
+                bin = np.r_[bin, c_bin]
 
         ############################
 
@@ -477,16 +496,17 @@ class SpecificWorker(GenericWorker):
             (np.zeros(2), -r.jacobm(start=r.links[3], end=gripper).reshape((n - 2,)), np.zeros(6))
         )
 
-        # Get base to face end-effector
-        kε = 0.5
-        bTe = r.fkine(r.q, end=gripper, include_base=False).A
-        θε = math.atan2(bTe[1, -1], bTe[0, -1])
-        ε = kε * θε
-        c[0] = -ε
+        # # Get base to face end-effector
+        # kε = 0.5
+        # bTe = r.fkine(r.q, end=gripper, include_base=False).A
+        # θε = math.atan2(bTe[1, -1], bTe[0, -1])
+        # ε = kε * θε
+        # c[0] = -ε
 
         # The lower and upper bounds on the joint velocity and slack variable
-        lb = -np.r_[np.zeros(2), r.qdlim[2: n], 10 * np.ones(6)]
-        ub = np.r_[np.zeros(2), r.qdlim[2: n], 10 * np.ones(6)]
+        start = gripperSelect*7
+        lb = -np.r_[r.qdlim[:2],r.qdlim[start+2:start+n], 10 * np.ones(6)]
+        ub = np.r_[r.qdlim[:2], r.qdlim[start+2:start+n], 10 * np.ones(6)]
 
         # Solve for the joint velocities dq
         qd = qp.solve_qp(Q, c, Ain, bin, Aeq, beq, lb=lb, ub=ub, solver="piqp")
@@ -494,7 +514,6 @@ class SpecificWorker(GenericWorker):
 
         if qd is not None:
             qd = qd.copy()[2:9]
-            print(qd)
 
             if et < 0.02:
                 arrived = True
@@ -510,29 +529,61 @@ class SpecificWorker(GenericWorker):
     # SUBSCRIPTION to sendControllers method from VRControllerPub interface
     #
     def VRControllerPub_sendControllers(self, left, right):
-        self.deadManButton[1] = left.grab>0.8
+        self.deadManButton[1] = left.grab>0.85008
         self.deadManButton[0] = right.grab>0.8
         pass
 
 
     #
-    # SUBSCRIPTION to sendPose method from VRControllerPub interface
+    # SUBSCRIPTION to sendPoses method from VRControllerPub interface
     #
-    def VRControllerPub_sendPose(self, head, left, right):
+
+    def normalize_angle(self, a):
+        return (a + math.pi) % (2*math.pi) - math.pi
+
+    def fix_controller_pose(self, x, y, z, rx, ry, rz):
+        # Construye la pose del controlador (ajusta la convención si es necesario)
+        T_ctrl = sm.SE3(x, y, z) * sm.SE3.RPY(rx, ry, rz)   # o SE3.RPY(..., order='xyz') según convención
+
+        # Rotación fija: Rz(pi) * Ry(-pi/2)
+        T_fix = sm.SE3.Rz(math.pi) * sm.SE3.Ry(-math.pi/2)
+
+        # Aplica la corrección (primero la fix, luego la pose del controlador en el mismo marco)
+        T_new = T_fix * T_ctrl
+
+        # Extraer traslación y ángulos RPY (en radianes)
+        t = T_new.t  # array(3,)
+        rpy = T_new.rpy()  # por defecto roll-pitch-yaw
+
+        # Normalizar ángulos
+        rpy = np.array([self.normalize_angle(a) for a in rpy])
+
+        # Devuelve vector igual al que tenías: (x, y, z, rx, ry, rz)
+        return np.array((t[0], t[1], t[2], rpy[0], rpy[1], rpy[2]))
+    
+
+    def fix_controller_orientation(self, x,y,z,rx,ry,rz):
+        # Matriz de rotación original
+        R_ctrl = R.from_euler('xyz', [rx, ry, rz]).as_matrix()
+
+        # Rotación fija
+        R_fix = (R.from_euler('z', math.pi) * R.from_euler('y', -math.pi/2)).as_matrix()
+
+        # Solo reorientar
+        R_new = R_fix @ R_ctrl
+
+        # Convertir a Euler (misma convención)
+        rx2, ry2, rz2 = R.from_matrix(R_new).as_euler('xyz')
+
+        return np.array((x, y, z, rx2, ry2, rz2))
+    
+    def VRControllerPub_sendPoses(self, head, left, right):
         # Cambiar a coordenadas ROS
-        self.pose = np.array([head.y*SCALE, -head.x*SCALE, head.z*SCALE-1.4,0,0,head.rz])#head.ry, -head.rx, head.rz+1.57])
+        self.pose = np.array([-head.x*SCALE, head.y*SCALE, head.z*SCALE-1.4,head.qrw, 0, 0, -head.qrz])
 
-        left = np.array((-left.x, left.y, left.z, left.rx, left.ry-1.57, left.rz+3.1416))
-        right = np.array((-right.x, right.y, right.z, right.rx, right.ry-1.57, right.rz+3.1416))
+        self.poseController[1] = np.array((-left.x, left.y, left.z, left.qrw, left.qrx, left.qry, left.qrz))
+        self.poseController[0] = np.array((-right.x, right.y, right.z, right.qrw, right.qrx, right.qry, right.qrz))
 
-        if self.deadManButton[1] and not (np.allclose(self.left[:3], left[:3], atol=10) or 
-                                          np.allclose(self.left[3:], left[3:], atol=0.01)):
-            self.change_target(1, left[:3], left[3:])
-            self.left = left #mm
-
-        if self.deadManButton[0] and not (np.allclose(self.right, right, atol=10) or np.allclose(self.right[3:], right[3:], atol=0.01)):
-            self.change_target(0, right[:3], right[3:])
-            self.right = right
 
 
     # ===================================================================
