@@ -3,13 +3,11 @@ Proxies.TopicManager = "IceStorm/TopicManager:default -p 9999"
 
 
 # Proxies for publishes interfaces
-Proxies.KinovaArmPubPrefix = "left"
-Proxies.KinovaArmPubPrefix1 = "right"
-
+Proxies.VRControllerPubPrefix = "haptic"
 
 # Proxies for required interfaces
 Proxies.KinovaArm = "kinovaarm:tcp -h localhost -p 10005"
-Proxies.KinovaArm1 = "kinovaarm:tcp -h localhost -p 10006"
+Proxies.KinovaArm1 = "kinovaarm1:tcp -h localhost -p 10006"
 
 
 # Endpoints for subscriptions interfaces
@@ -27,6 +25,6 @@ Ice.MessageSizeMax = "20004800"
 
 
 
-simulated = true
+simulated = False
 directKinematic = False
 

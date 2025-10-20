@@ -74,8 +74,7 @@ class Publishes:
         self.mprx={}
         self.topic_manager = topic_manager
 
-        self.kinovaarmpub = self.create_topic("KinovaArmPub", "KinovaArmPub", parameters["Proxies"]["KinovaArmPubPrefix"], RoboCompKinovaArmPub.KinovaArmPubPrx)
-        self.kinovaarmpub1 = self.create_topic("KinovaArmPub1", "KinovaArmPub", parameters["Proxies"]["KinovaArmPubPrefix1"], RoboCompKinovaArmPub.KinovaArmPubPrx)
+        self.vrcontrollerpub = self.create_topic("VRControllerPub", "VRControllerPub", parameters["Proxies"]["VRControllerPubPrefix"], RoboCompVRControllerPub.VRControllerPubPrx)
 
 
     def create_topic(self, property_name, topic_name, prefix, ice_proxy):

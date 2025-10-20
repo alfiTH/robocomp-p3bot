@@ -20,7 +20,7 @@
 #
 
 import threading
-from time import sleep
+from time import sleep, time
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 from rich.console import Console
@@ -48,6 +48,8 @@ import numpy as np
 SCALE = 0.001
 console = Console(highlight=False)
 live = Live(console=console, refresh_per_second=10)
+COLLISION_BODY = [[["low_body", "right_arm_forearm_link"], ["left_arm", "left_arm_tool_frame"]], 
+                          [ ["low_body", "right_arm_tool_frame"], ["left_arm", "left_arm_forearm_link"]]]
 
 class SpecificWorker(GenericWorker):
     def __init__(self, proxy_map, configData, startup_check=False):
@@ -69,7 +71,6 @@ class SpecificWorker(GenericWorker):
         
         self.gain = np.array([1, 1, 1, 1.6, 1.6, 1.6])
 
-        self.kinova_pub_arms = [self.kinovaarmpub_proxy, self.kinovaarmpub1_proxy]
         self.kinova_arms = [None, None]
         if not self.simulated:
             self.kinova_arms = [self.kinovaarm_proxy, self.kinovaarm1_proxy]
@@ -108,7 +109,7 @@ class SpecificWorker(GenericWorker):
                 frame.attach_to(self.p3bot.grippers[i].links[0])
                 self.env.add(frame)
 
-                self.collisions_tool.append(sg.Cuboid((0.12, 0.15, 0.2), pose=self.p3bot.grippers[i].tool, color=(1, 0, 0,0.25)),)
+                self.collisions_tool.append(sg.Cuboid((0.12, 0.15, 0.2), pose=self.p3bot.grippers[i].tool, color=(1, 0, 0,0.25)))
                 self.env.add(self.collisions_tool[i])
             #endregion
 
@@ -117,12 +118,16 @@ class SpecificWorker(GenericWorker):
             self.deadManButton = [False, False]
             self.target = [None, None]
             self.poseController = [np.array((0,0,0,0,0,0)), np.array((0,0,0,0,0,0))]
+            self.haptics = np.array([0, 0])
             #endregion
 
             self.home =  np.radians(np.array([[40,-120,60,-130,-20,-65, 85], [-40,-120,-60,-130,20,-65, 85]], dtype=np.float64))
             self.pick =  np.radians(np.array([[90,-120,80,-130,-20, 45, 95], [-90,-120,-80,-130, 20, 45, 85]], dtype=np.float64))
             self.set_all_joints(self.pick)
-            for i in range(2): self.update_collisions_tool(self.p3bot, i)
+            for i in range(2): 
+                self.update_collisions_tool(self.p3bot, i)
+                self.env.add(self.goal_axes[i]) 
+
 
 
             
@@ -188,6 +193,7 @@ class SpecificWorker(GenericWorker):
 
     @QtCore.Slot()
     def compute(self):
+        t1 = time()
         # #Update pose in swift
         if self.pose is not None:
             T = sm.SE3(self.pose[0:3])
@@ -196,13 +202,13 @@ class SpecificWorker(GenericWorker):
             R = q.SE3()
             self.pose = None
             self.p3bot.base = T *self.bodyOffset * R
-        for arm in range(len(self.kinova_pub_arms)):
+        for arm in range(2):
             self.p3bot.q[2 + arm * 7 : 9 + arm * 7] = self.get_joints(arm)
-            self.kinova_pub_arms[arm].sendJointsWithAngle(ifaces.RoboCompKinovaArm.TJointAngles(np.array(self.p3bot.q[2 + arm * 7 : 9 + arm * 7], dtype=np.float32)))
+        t2 = time()
 
         # self.update_collisions(self.p3bot.base)
-    
         #Go to target
+        haptics = self.haptics.copy()
         for arm in range(2):
             if self.deadManButton[arm]:
                 self.change_target(arm, self.poseController[arm][:3], self.poseController[arm][3:])
@@ -211,7 +217,8 @@ class SpecificWorker(GenericWorker):
                 if self.directKinematic:                
                     arrived, qd = self.direct_kinematic_robot(self.p3bot, arm, self.target[arm].A)
                 else:
-                    arrived, qd = self.step_robot(self.p3bot, arm, self.target[arm].A, self.collisions_tool[arm])
+                    arrived, qd, num_collisions = self.step_robot(self.p3bot, arm, self.target[arm].A, self.collisions_tool[arm])
+                    haptics[arm] = num_collisions
 
 
                 # qd[2:] = [0]*(len(qd)-2)
@@ -225,14 +232,22 @@ class SpecificWorker(GenericWorker):
                     self.set_velocity_joints(arm, [0]*7)
             else:
                 self.set_velocity_joints(arm, [0]*7)
+                haptics[arm] = 0
+        if np.any(np.not_equal(haptics, self.haptics)):
+            self.haptics = haptics
+            self.vrcontrollerpub_proxy.sendHaptics(ifaces.RoboCompVRControllerPub.Haptic(haptics[1]*0.5, 1), 
+                                                   ifaces.RoboCompVRControllerPub.Haptic(haptics[0]*0.5, 1))
 
 
         self.env.step(0.05)
+        t3 = time()
 
         base_new = self.p3bot.fkine(self.p3bot._q, end=self.p3bot.links[2])
         self.p3bot._T = base_new.A
         self.p3bot.q[:2] = 0
         live.update(self.generate_test_status_table())
+        t4 = time()
+        # console.print(Text(f"pose{t2-t1:2f}, arms {t3-t2:2f}, more {t4-t3:2f}, all {t4-t1:2f}"))
         return True
 
     def startup_check(self):
@@ -256,6 +271,8 @@ class SpecificWorker(GenericWorker):
         test = ifaces.RoboCompVRControllerPub.Pose()
         print(f"Testing RoboCompVRControllerPub.Controller from ifaces.RoboCompVRControllerPub")
         test = ifaces.RoboCompVRControllerPub.Controller()
+        print(f"Testing RoboCompVRControllerPub.Haptic from ifaces.RoboCompVRControllerPub")
+        test = ifaces.RoboCompVRControllerPub.Haptic()
         QTimer.singleShot(200, QApplication.instance().quit)
 
     def set_all_joints(self, poses: list[list[float]]) -> None:
@@ -400,8 +417,6 @@ class SpecificWorker(GenericWorker):
             
             self.target[arm] = T * self.targetOffset * R 
             self.goal_axes[arm].T = self.target[arm]
-            self.env.add(self.goal_axes[arm])
-
 
     def direct_kinematic_robot(self, r: rtb.ERobot, gripperSelect, Tep):
         gripper = r.grippers[gripperSelect]
@@ -415,8 +430,6 @@ class SpecificWorker(GenericWorker):
         return arrived, qd
         
     def step_robot(self, r: rtb.ERobot, gripperSelect, Tep, collision):
-        collision_body = [["low_body", "right_arm_spherical_wrist_2_link"],["left_arm", "left_arm_spherical_wrist_2_link"]]
-        # colli = [["right_arm_shoulder_link", "right_arm_spherical_wrist_2_link"],["left_arm_shoulder_link", "left_arm_spherical_wrist_2_link"]]
         n = 9
         gripper = r.grippers[gripperSelect]
         ets = r.ets(end=gripper)
@@ -465,9 +478,10 @@ class SpecificWorker(GenericWorker):
 
         rot_boost = 1
         vel_decay = 1
+        num_collisions = 0
 
         #################COLISIONS##################
-        for i, body in enumerate(collision_body):
+        for i, body in enumerate(COLLISION_BODY[gripperSelect]):
             c_Ain, c_bin = self.p3bot.link_collision_damper(
                     collision,
                     self.p3bot.q,
@@ -481,8 +495,15 @@ class SpecificWorker(GenericWorker):
             # If there are any parts of the robot within the influence distance
             # to the collision in the scene
             if c_Ain is not None and c_bin is not None:
+                # print(f"{i}, colision {c_Ain.shape}, {c_bin.shape}")
+                # print(c_bin)
+                # print(c_Ain)
+                c_Ain = c_Ain[:, :10]#TODO investigar porque es 0 
+
+
                 c_Ain = np.c_[c_Ain, np.zeros((c_Ain.shape[0], n + 6 - c_Ain.shape[1]))]
-                print(f"{i}, colision {c_Ain.shape}, {c_bin.shape}")
+                num_collisions += c_bin.shape[0]
+
                 # if len(c_Ain) > 1 : vel_decay +=len(c_bin)*2
 
                 # Stack the inequality constraints
@@ -520,7 +541,7 @@ class SpecificWorker(GenericWorker):
         else:
             console.print(Text("Optimización fallida.", "yellow"))
             qd = np.zeros(7)
-        return arrived, qd
+        return arrived, qd, num_collisions
 
     # =============== Methods for Component SubscribesTo ================
     # ===================================================================
@@ -535,52 +556,18 @@ class SpecificWorker(GenericWorker):
 
 
     #
+    # SUBSCRIPTION to sendHaptics method from VRControllerPub interface
+    #
+    def VRControllerPub_sendHaptics(self, left, right):
+
+        #
+        # write your CODE here
+        #
+        pass
+    #
     # SUBSCRIPTION to sendPoses method from VRControllerPub interface
     #
-
-    def normalize_angle(self, a):
-        return (a + math.pi) % (2*math.pi) - math.pi
-
-    def fix_controller_pose(self, x, y, z, rx, ry, rz):
-        # Construye la pose del controlador (ajusta la convención si es necesario)
-        T_ctrl = sm.SE3(x, y, z) * sm.SE3.RPY(rx, ry, rz)   # o SE3.RPY(..., order='xyz') según convención
-
-        # Rotación fija: Rz(pi) * Ry(-pi/2)
-        T_fix = sm.SE3.Rz(math.pi) * sm.SE3.Ry(-math.pi/2)
-
-        # Aplica la corrección (primero la fix, luego la pose del controlador en el mismo marco)
-        T_new = T_fix * T_ctrl
-
-        # Extraer traslación y ángulos RPY (en radianes)
-        t = T_new.t  # array(3,)
-        rpy = T_new.rpy()  # por defecto roll-pitch-yaw
-
-        # Normalizar ángulos
-        rpy = np.array([self.normalize_angle(a) for a in rpy])
-
-        # Devuelve vector igual al que tenías: (x, y, z, rx, ry, rz)
-        return np.array((t[0], t[1], t[2], rpy[0], rpy[1], rpy[2]))
-    
-
-    def fix_controller_orientation(self, x,y,z,rx,ry,rz):
-        # Matriz de rotación original
-        R_ctrl = R.from_euler('xyz', [rx, ry, rz]).as_matrix()
-
-        # Rotación fija
-        R_fix = (R.from_euler('z', math.pi) * R.from_euler('y', -math.pi/2)).as_matrix()
-
-        # Solo reorientar
-        R_new = R_fix @ R_ctrl
-
-        # Convertir a Euler (misma convención)
-        rx2, ry2, rz2 = R.from_matrix(R_new).as_euler('xyz')
-
-        return np.array((x, y, z, rx2, ry2, rz2))
-    
     def VRControllerPub_sendPoses(self, head, left, right):
-        # Cambiar a coordenadas ROS
-        self.pose = np.array([-head.x*SCALE, head.y*SCALE, head.z*SCALE-1.4,head.qrw, 0, 0, -head.qrz])
-
         self.poseController[1] = np.array((-left.x, left.y, left.z, left.qrw, left.qrx, left.qry, left.qrz))
         self.poseController[0] = np.array((-right.x, right.y, right.z, right.qrw, right.qrx, right.qry, right.qrz))
 
@@ -638,18 +625,21 @@ class SpecificWorker(GenericWorker):
     # ifaces.RoboCompKinovaArm.TJointAngles
 
     ######################
-    # From the RoboCompKinovaArmPub you can publish calling this methods:
-    # RoboCompKinovaArmPub.void self.kinovaarmpub_proxy.newArmState(RoboCompKinovaArm.TPose armState)
-    # RoboCompKinovaArmPub.void self.kinovaarmpub_proxy.sendJointsWithAngle(RoboCompKinovaArm.TJointAngles angles)
-
-    ######################
-    # From the RoboCompKinovaArmPub you can publish calling this methods:
-    # RoboCompKinovaArmPub.void self.kinovaarmpub1_proxy.newArmState(RoboCompKinovaArm.TPose armState)
-    # RoboCompKinovaArmPub.void self.kinovaarmpub1_proxy.sendJointsWithAngle(RoboCompKinovaArm.TJointAngles angles)
+    # From the RoboCompVRControllerPub you can publish calling this methods:
+    # RoboCompVRControllerPub.void self.vrcontrollerpub_proxy.sendControllers(Controller left, Controller right)
+    # RoboCompVRControllerPub.void self.vrcontrollerpub_proxy.sendHaptics(Haptic left, Haptic right)
+    # RoboCompVRControllerPub.void self.vrcontrollerpub_proxy.sendPoses(Pose head, Pose left, Pose right)
 
     ######################
     # From the RoboCompVRControllerPub you can use this types:
     # ifaces.RoboCompVRControllerPub.Pose
     # ifaces.RoboCompVRControllerPub.Controller
+    # ifaces.RoboCompVRControllerPub.Haptic
+
+    ######################
+    # From the RoboCompVRControllerPub you can use this types:
+    # ifaces.RoboCompVRControllerPub.Pose
+    # ifaces.RoboCompVRControllerPub.Controller
+    # ifaces.RoboCompVRControllerPub.Haptic
 
 

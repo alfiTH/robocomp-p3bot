@@ -8,7 +8,7 @@ Component armController
     {
         requires KinovaArm, KinovaArm;
         subscribesTo VRControllerPub;
-        publishes KinovaArmPub, KinovaArmPub;
+        publishes VRControllerPub;
     };
     language python;
 };
