@@ -116,6 +116,7 @@ class SpecificWorker(GenericWorker):
             #region getGoal
             self.goal_axes = [sg.Axes(0.1), sg.Axes(0.1)]
             self.deadManButton = [False, False]
+            self.gripperOpening = [0, 0]
             self.target = [None, None]
             self.poseController = [np.array((0,0,0,0,0,0)), np.array((0,0,0,0,0,0))]
             self.haptics = np.array([0, 0])
@@ -131,7 +132,7 @@ class SpecificWorker(GenericWorker):
 
 
             
-            # live.start()
+            live.start()
             self.timer.timeout.connect(self.compute)
             self.timer.start(self.Period)
 
@@ -230,6 +231,13 @@ class SpecificWorker(GenericWorker):
                 if arrived:
                     print(f"arm {arm} ARRIBEEEEEDDDD")
                     self.set_velocity_joints(arm, [0]*7)
+                
+                if not self.simulated:
+                    try:
+                            self.kinova_arms[arm].setGripperPos(self.gripperOpening[arm])
+                    except Exception as e:
+                        console.print_exception()
+                
             else:
                 self.set_velocity_joints(arm, [0]*7)
                 haptics[arm] = 0
@@ -428,7 +436,7 @@ class SpecificWorker(GenericWorker):
         qd = np.clip(np.linalg.pinv(ets.jacobe(r.q)) @ v, -r.qdlim[indices], r.qdlim[indices])[2:9]
                                         
         return arrived, qd
-        
+
     def step_robot(self, r: rtb.ERobot, gripperSelect, Tep, collision):
         n = 9
         gripper = r.grippers[gripperSelect]
@@ -550,8 +558,11 @@ class SpecificWorker(GenericWorker):
     # SUBSCRIPTION to sendControllers method from VRControllerPub interface
     #
     def VRControllerPub_sendControllers(self, left, right):
-        self.deadManButton[1] = left.grab>0.85008
+        self.deadManButton[1] = left.grab>0.8
+        self.gripperOpening[1] = round(left.trigger, 1)
         self.deadManButton[0] = right.grab>0.8
+        self.gripperOpening[0] = round(right.trigger, 1)
+
         pass
 
 
@@ -589,6 +600,7 @@ class SpecificWorker(GenericWorker):
     # RoboCompKinovaArm.void self.kinovaarm_proxy.moveJointsWithSpeed(TJointSpeeds speeds)
     # RoboCompKinovaArm.void self.kinovaarm_proxy.openGripper()
     # RoboCompKinovaArm.void self.kinovaarm_proxy.setCenterOfTool(TPose pose, ArmJoints referencedTo)
+    # RoboCompKinovaArm.bool self.kinovaarm_proxy.setGripperPos(float pos)
 
     ######################
     # From the RoboCompKinovaArm you can use this types:
@@ -612,6 +624,7 @@ class SpecificWorker(GenericWorker):
     # RoboCompKinovaArm.void self.kinovaarm1_proxy.moveJointsWithSpeed(TJointSpeeds speeds)
     # RoboCompKinovaArm.void self.kinovaarm1_proxy.openGripper()
     # RoboCompKinovaArm.void self.kinovaarm1_proxy.setCenterOfTool(TPose pose, ArmJoints referencedTo)
+    # RoboCompKinovaArm.bool self.kinovaarm1_proxy.setGripperPos(float pos)
 
     ######################
     # From the RoboCompKinovaArm you can use this types:
