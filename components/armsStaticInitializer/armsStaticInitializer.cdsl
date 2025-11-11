@@ -1,0 +1,11 @@
+import "KinovaArm.idsl";
+
+Component armsStaticInitializer
+{
+    Communications
+    {
+        requires KinovaArm, KinovaArm;
+    };
+    language python;
+};
+
