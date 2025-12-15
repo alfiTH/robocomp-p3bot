@@ -29,21 +29,15 @@ if len(ROBOCOMP)<1:
     raise RuntimeError('ROBOCOMP environment variable not set! Exiting.')
 
 
-Ice.loadSlice("-I ./generated/ --all ./generated/VRControllerPub.ice")
+Ice.loadSlice("-I ./generated/ --all ./generated/VRController.ice")
 
-from RoboCompVRControllerPub import *
+from RoboCompVRController import *
 
-class VRControllerPubI(VRControllerPub):
+class VRControllerI(VRController):
     def __init__(self, worker, id:str):
         self.worker = worker
         self.id = id
 
 
-    def sendControllers(self, left, right, ice):
-        return getattr(self.worker, f"VRControllerPub{self.id}_sendControllers")(left, right)
-
-    def sendHaptics(self, left, right, ice):
-        return getattr(self.worker, f"VRControllerPub{self.id}_sendHaptics")(left, right)
-
-    def sendPoses(self, head, left, right, ice):
-        return getattr(self.worker, f"VRControllerPub{self.id}_sendPoses")(head, left, right)
+    def sendDataReceiveHaptics(self, head, left, right, ice):
+        return getattr(self.worker, f"VRController{self.id}_sendDataReceiveHaptics")(head, left, right)

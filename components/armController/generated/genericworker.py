@@ -34,8 +34,6 @@ class GenericWorker(QtCore.QObject):
         self.kinovaarm1_proxy = mprx["KinovaArm1"]
         self.kinovaarm_proxy = mprx["KinovaArm"]
         self.kinovaarm1_proxy = mprx["KinovaArm1"]
-        self.vrcontrollerpub_proxy = mprx["VRControllerPub"]
-        self.vrcontrollerpub_proxy = mprx["VRControllerPub"]
 
         self.configData = configData
 

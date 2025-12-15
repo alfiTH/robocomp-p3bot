@@ -20,7 +20,7 @@ SET(RC_COMPONENT_DEVEL_PATH ${CMAKE_CURRENT_SOURCE_DIR} CACHE STRING "component 
 SET(RC_OUTPUT_ICE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/generated)
 
 #Generate ices
-ROBOCOMP_IDSL_TO_ICE(KinovaArm KinovaArm KinovaArm KinovaArmPub VRControllerPub VRControllerPub VRControllerPub )
+ROBOCOMP_IDSL_TO_ICE(KinovaArm KinovaArm KinovaArm KinovaArmPub VRController VRController )
 
 
 ADD_SUBDIRECTORY( src )

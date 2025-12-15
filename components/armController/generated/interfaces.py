@@ -8,8 +8,8 @@ Ice.loadSlice("-I ./generated/ --all ./generated/KinovaArm.ice")
 import RoboCompKinovaArm
 Ice.loadSlice("-I ./generated/ --all ./generated/KinovaArmPub.ice")
 import RoboCompKinovaArmPub
-Ice.loadSlice("-I ./generated/ --all ./generated/VRControllerPub.ice")
-import RoboCompVRControllerPub
+Ice.loadSlice("-I ./generated/ --all ./generated/VRController.ice")
+import RoboCompVRController
 
 class TJointSeq(list):
     def __init__(self, iterable=list()):
@@ -66,15 +66,13 @@ class Angles(list):
 setattr(RoboCompKinovaArm, "Angles", Angles)
 
 
-import vrcontrollerpubI
+import vrcontrollerI
 
 class Publishes:
     def __init__(self, ice_connector:Ice.CommunicatorI, topic_manager, parameters):
         self.ice_connector = ice_connector
         self.mprx={}
         self.topic_manager = topic_manager
-
-        self.vrcontrollerpub = self.create_topic("VRControllerPub", "VRControllerPub", parameters["Proxies"]["VRControllerPubPrefix"], RoboCompVRControllerPub.VRControllerPubPrx)
 
 
     def create_topic(self, property_name, topic_name, prefix, ice_proxy):
@@ -130,9 +128,6 @@ class Subscribes:
         self.ice_connector = ice_connector
         self.topic_manager = topic_manager
 
-        self.VRControllerPub = self.create_adapter("VRControllerPub", parameters["Endpoints"]["VRControllerPubPrefix"], 
-                                                vrcontrollerpubI.VRControllerPubI(default_handler, ""), parameters["Endpoints"]["VRControllerPubTopic"])
-
     def create_adapter(self, topic_name, prefix, interface_handler, endpoint_string):
         topic_full_name = f"{prefix}/{topic_name}" if prefix else topic_name
 
@@ -161,6 +156,8 @@ class Implements:
     def __init__(self, ice_connector:Ice.CommunicatorI, default_handler, parameters):
         self.ice_connector = ice_connector
 
+        self.vrcontroller = self.create_adapter("VRController", vrcontrollerI.VRControllerI(default_handler, ""), parameters["Endpoints"]["VRController"])
+
     def create_adapter(self, property_name, interface_handler, endpoint_string):
         try:
             adapter = self.ice_connector.createObjectAdapterWithEndpoints(property_name, endpoint_string)
@@ -185,7 +182,7 @@ class InterfaceManager:
 
         self.status = 0
 
-        needs_rcnode = True
+        needs_rcnode = False
         self.topic_manager = self.init_topic_manager(configData) if needs_rcnode else None
 
         self.requires = Requires(self.ice_connector, configData)

@@ -26,7 +26,7 @@ from PySide6.QtWidgets import QApplication
 from rich.console import Console
 from rich.text import Text
 from rich.table import Table
-from rich.live import Live
+# from rich.live import Live
 from collections import deque
 
 from genericworker import *
@@ -47,7 +47,7 @@ import numpy as np
 
 SCALE = 0.001
 console = Console(highlight=False)
-live = Live(console=console, refresh_per_second=10)
+# live = Live(console=console, refresh_per_second=10)
 COLLISION_BODY = [[["low_body", "right_arm_forearm_link"], ["left_arm", "left_arm_tool_frame"]], 
                           [ ["low_body", "right_arm_tool_frame"], ["left_arm", "left_arm_forearm_link"]]]
 
@@ -109,8 +109,10 @@ class SpecificWorker(GenericWorker):
                 frame.attach_to(self.p3bot.grippers[i].links[0])
                 self.env.add(frame)
 
-                self.collisions_tool.append(sg.Cuboid((0.12, 0.15, 0.2), pose=self.p3bot.grippers[i].tool, color=(1, 0, 0,0.25)))
-                self.env.add(self.collisions_tool[i])
+                self.collisions_tool.append([sg.Cuboid((0.065, 0.08, 0.045), pose=self.p3bot.grippers[i].tool, color=(1, 0, 0,0.25)),
+                                             sg.Cuboid((0.03, 0.098, 0.15), pose=self.p3bot.grippers[i].tool, color=(1, 0, 0,0.25))])
+                self.env.add(self.collisions_tool[i][0])
+                self.env.add(self.collisions_tool[i][1])
             #endregion
 
             #region getGoal
@@ -132,7 +134,7 @@ class SpecificWorker(GenericWorker):
 
 
             
-            live.start()
+            # live.start()
             self.timer.timeout.connect(self.compute)
             self.timer.start(self.Period)
 
@@ -209,7 +211,6 @@ class SpecificWorker(GenericWorker):
 
         # self.update_collisions(self.p3bot.base)
         #Go to target
-        haptics = self.haptics.copy()
         for arm in range(2):
             if self.deadManButton[arm]:
                 self.change_target(arm, self.poseController[arm][:3], self.poseController[arm][3:])
@@ -219,7 +220,7 @@ class SpecificWorker(GenericWorker):
                     arrived, qd = self.direct_kinematic_robot(self.p3bot, arm, self.target[arm].A)
                 else:
                     arrived, qd, num_collisions = self.step_robot(self.p3bot, arm, self.target[arm].A, self.collisions_tool[arm])
-                    haptics[arm] = num_collisions
+                    self.haptics[arm] = num_collisions
 
 
                 # qd[2:] = [0]*(len(qd)-2)
@@ -240,11 +241,9 @@ class SpecificWorker(GenericWorker):
                 
             else:
                 self.set_velocity_joints(arm, [0]*7)
-                haptics[arm] = 0
-        if np.any(np.not_equal(haptics, self.haptics)):
-            self.haptics = haptics
-            self.vrcontrollerpub_proxy.sendHaptics(ifaces.RoboCompVRControllerPub.Haptic(haptics[1]*0.5, 1), 
-                                                   ifaces.RoboCompVRControllerPub.Haptic(haptics[0]*0.5, 1))
+                self.haptics[arm] = 0
+
+
 
 
         self.env.step(0.05)
@@ -253,7 +252,7 @@ class SpecificWorker(GenericWorker):
         base_new = self.p3bot.fkine(self.p3bot._q, end=self.p3bot.links[2])
         self.p3bot._T = base_new.A
         self.p3bot.q[:2] = 0
-        live.update(self.generate_test_status_table())
+        # live.update(self.generate_test_status_table())
         t4 = time()
         # console.print(Text(f"pose{t2-t1:2f}, arms {t3-t2:2f}, more {t4-t3:2f}, all {t4-t1:2f}"))
         return True
@@ -275,12 +274,14 @@ class SpecificWorker(GenericWorker):
         test = ifaces.RoboCompKinovaArm.TJointSpeeds()
         print(f"Testing RoboCompKinovaArm.TJointAngles from ifaces.RoboCompKinovaArm")
         test = ifaces.RoboCompKinovaArm.TJointAngles()
-        print(f"Testing RoboCompVRControllerPub.Pose from ifaces.RoboCompVRControllerPub")
-        test = ifaces.RoboCompVRControllerPub.Pose()
-        print(f"Testing RoboCompVRControllerPub.Controller from ifaces.RoboCompVRControllerPub")
-        test = ifaces.RoboCompVRControllerPub.Controller()
-        print(f"Testing RoboCompVRControllerPub.Haptic from ifaces.RoboCompVRControllerPub")
-        test = ifaces.RoboCompVRControllerPub.Haptic()
+        print(f"Testing RoboCompVRController.Pose from ifaces.RoboCompVRController")
+        test = ifaces.RoboCompVRController.Pose()
+        print(f"Testing RoboCompVRController.Controller from ifaces.RoboCompVRController")
+        test = ifaces.RoboCompVRController.Controller()
+        print(f"Testing RoboCompVRController.Haptic from ifaces.RoboCompVRController")
+        test = ifaces.RoboCompVRController.Haptic()
+        print(f"Testing RoboCompVRController.Haptics from ifaces.RoboCompVRController")
+        test = ifaces.RoboCompVRController.Haptics()
         QTimer.singleShot(200, QApplication.instance().quit)
 
     def set_all_joints(self, poses: list[list[float]]) -> None:
@@ -324,7 +325,7 @@ class SpecificWorker(GenericWorker):
         assert 7 == len(pose), f"Robot has {7} joins, tried use {len(pose)}" 
         try:
             counter = 0
-            while not np.allclose(self.p3bot.q[2 + arm * 7 : 9 + arm * 7], pose, rtol=0.0001):
+            while not np.allclose(self.p3bot.q[2 + arm * 7 : 9 + arm * 7], pose, rtol=0.001):
                 if counter % 1000 == 0:
                     console.print(Text(f"Set pose {pose}", "green"))
                     if self.simulated:
@@ -333,10 +334,11 @@ class SpecificWorker(GenericWorker):
                         self.set_velocity_joints(arm, [0]*7)
                         angles = ifaces.RoboCompKinovaArm.TJointAngles(jointAngles=ifaces.RoboCompKinovaArm.Angles(np.array(pose)))
                         self.kinova_arms[arm].moveJointsWithAngle(angles)
-
                 
                 sleep(0.005)
                 self.p3bot.q[2 + arm * 7 : 9 + arm * 7] = self.get_joints(arm)
+                console.print(Text(f"get pose {self.p3bot.q[2 + arm * 7 : 9 + arm * 7]}", "red"))
+                
                 # self.p3bot.q[2 + arm * 7 : 9 + arm * 7] = pose
                 # print(self.p3bot.q[2 + arm * 7 : 9 + arm * 7], pose, "\n\n\n")
                 self.env.step(0)
@@ -414,8 +416,8 @@ class SpecificWorker(GenericWorker):
     def update_collisions_tool(self, r:rtb.ERobot, gripperSelect:int):
         gripper = r.grippers[gripperSelect]   # por ejemplo
         wTe = r.fkine(r.q, end=gripper)
-        self.collisions_tool[gripperSelect].T = wTe * sm.SE3([-0.02, 0, -0.07])
-        
+        self.collisions_tool[gripperSelect][0].T = wTe * sm.SE3([-0.04, 0, -0.15])
+        self.collisions_tool[gripperSelect][1].T = wTe * sm.SE3([0, 0, -0.05])
 
     def change_target(self, arm:int, translate:np.ndarray, rot:np.ndarray):
         if self.deadManButton[arm]:
@@ -437,7 +439,7 @@ class SpecificWorker(GenericWorker):
                                         
         return arrived, qd
 
-    def step_robot(self, r: rtb.ERobot, gripperSelect, Tep, collision):
+    def step_robot(self, r: rtb.ERobot, gripperSelect, Tep, collisions):
         n = 9
         gripper = r.grippers[gripperSelect]
         ets = r.ets(end=gripper)
@@ -490,33 +492,34 @@ class SpecificWorker(GenericWorker):
 
         #################COLISIONS##################
         for i, body in enumerate(COLLISION_BODY[gripperSelect]):
-            c_Ain, c_bin = self.p3bot.link_collision_damper(
-                    collision,
-                    self.p3bot.q,
-                    di=0.1, # Distancia mínima más pequeña (ej: 0.1 metros)
-                    ds=0.05, # Ganancia más alta (ej: 0.1)
-                    xi=1, # Mayor peso en la optimización
-                    start= self.p3bot.link_dict[body[0]], 
-                    end= self.p3bot.link_dict[body[1]]
-                )
+            for collision in collisions:
+                c_Ain, c_bin = self.p3bot.link_collision_damper(
+                        collision,
+                        self.p3bot.q,
+                        di=0.1, # Distancia mínima más pequeña (ej: 0.1 metros)
+                        ds=0.05, # Ganancia más alta (ej: 0.1)
+                        xi=1, # Mayor peso en la optimización
+                        start= self.p3bot.link_dict[body[0]], 
+                        end= self.p3bot.link_dict[body[1]]
+                    )
 
-            # If there are any parts of the robot within the influence distance
-            # to the collision in the scene
-            if c_Ain is not None and c_bin is not None:
-                # print(f"{i}, colision {c_Ain.shape}, {c_bin.shape}")
-                # print(c_bin)
-                # print(c_Ain)
-                c_Ain = c_Ain[:, :10]#TODO investigar porque es 0 
+                # If there are any parts of the robot within the influence distance
+                # to the collision in the scene
+                if c_Ain is not None and c_bin is not None:
+                    # print(f"{i}, colision {c_Ain.shape}, {c_bin.shape}")
+                    # print(c_bin)
+                    # print(c_Ain)
+                    c_Ain = c_Ain[:, :10]#TODO investigar porque es 0 
 
 
-                c_Ain = np.c_[c_Ain, np.zeros((c_Ain.shape[0], n + 6 - c_Ain.shape[1]))]
-                num_collisions += c_bin.shape[0]
+                    c_Ain = np.c_[c_Ain, np.zeros((c_Ain.shape[0], n + 6 - c_Ain.shape[1]))]
+                    num_collisions += c_bin.shape[0]
 
-                # if len(c_Ain) > 1 : vel_decay +=len(c_bin)*2
+                    # if len(c_Ain) > 1 : vel_decay +=len(c_bin)*2
 
-                # Stack the inequality constraints
-                Ain = np.r_[Ain, c_Ain]
-                bin = np.r_[bin, c_bin]
+                    # Stack the inequality constraints
+                    Ain = np.r_[Ain, c_Ain]
+                    bin = np.r_[bin, c_bin]
 
         ############################
 
@@ -551,42 +554,31 @@ class SpecificWorker(GenericWorker):
             qd = np.zeros(7)
         return arrived, qd, num_collisions
 
-    # =============== Methods for Component SubscribesTo ================
+
+    # =============== Methods for Component Implements ==================
     # ===================================================================
 
     #
-    # SUBSCRIPTION to sendControllers method from VRControllerPub interface
+    # IMPLEMENTATION of sendDataReceiveHaptics method from VRController interface
     #
-    def VRControllerPub_sendControllers(self, left, right):
+    def VRController_sendDataReceiveHaptics(self, head, left, right):
+
         self.deadManButton[1] = left.grab>0.8
         self.gripperOpening[1] = round(left.trigger, 1)
         self.deadManButton[0] = right.grab>0.8
         self.gripperOpening[0] = round(right.trigger, 1)
 
-        pass
+        left = left.pose
+        right = right.pose
 
-
-    #
-    # SUBSCRIPTION to sendHaptics method from VRControllerPub interface
-    #
-    def VRControllerPub_sendHaptics(self, left, right):
-
-        #
-        # write your CODE here
-        #
-        pass
-    #
-    # SUBSCRIPTION to sendPoses method from VRControllerPub interface
-    #
-    def VRControllerPub_sendPoses(self, head, left, right):
         self.poseController[1] = np.array((-left.x, left.y, left.z, left.qrw, left.qrx, left.qry, left.qrz))
         self.poseController[0] = np.array((-right.x, right.y, right.z, right.qrw, right.qrx, right.qry, right.qrz))
-
+        return ifaces.RoboCompVRController.Haptics(ifaces.RoboCompVRController.Haptic(self.haptics[1]*0.5, 1),
+                                             ifaces.RoboCompVRController.Haptic(self.haptics[0]*0.5, 1))
 
 
     # ===================================================================
     # ===================================================================
-
 
 
     ######################
@@ -638,21 +630,10 @@ class SpecificWorker(GenericWorker):
     # ifaces.RoboCompKinovaArm.TJointAngles
 
     ######################
-    # From the RoboCompVRControllerPub you can publish calling this methods:
-    # RoboCompVRControllerPub.void self.vrcontrollerpub_proxy.sendControllers(Controller left, Controller right)
-    # RoboCompVRControllerPub.void self.vrcontrollerpub_proxy.sendHaptics(Haptic left, Haptic right)
-    # RoboCompVRControllerPub.void self.vrcontrollerpub_proxy.sendPoses(Pose head, Pose left, Pose right)
-
-    ######################
-    # From the RoboCompVRControllerPub you can use this types:
-    # ifaces.RoboCompVRControllerPub.Pose
-    # ifaces.RoboCompVRControllerPub.Controller
-    # ifaces.RoboCompVRControllerPub.Haptic
-
-    ######################
-    # From the RoboCompVRControllerPub you can use this types:
-    # ifaces.RoboCompVRControllerPub.Pose
-    # ifaces.RoboCompVRControllerPub.Controller
-    # ifaces.RoboCompVRControllerPub.Haptic
+    # From the RoboCompVRController you can use this types:
+    # ifaces.RoboCompVRController.Pose
+    # ifaces.RoboCompVRController.Controller
+    # ifaces.RoboCompVRController.Haptic
+    # ifaces.RoboCompVRController.Haptics
 
 

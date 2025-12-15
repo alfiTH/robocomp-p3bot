@@ -14,7 +14,6 @@ Ice.Trace.Protocol = "0"
 Ice.MessageSizeMax = "20004800"
 
 
-
 simulated = False
 directKinematic = False
 
