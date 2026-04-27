@@ -1,12 +1,13 @@
 # Proxies for required interfaces
 Proxies.KinovaArm = "kinovaarm:tcp -h localhost -p 10005"
-Proxies.KinovaArm1 = "kinovaarm:tcp -h localhost -p 10006"
+Proxies.KinovaArm1 = "kinovaarm1:tcp -h localhost -p 10006"
 
 # Endpoints for implements interfaces
 Endpoints.VRController = "tcp -p 12002"
 
 Period.Compute = 25
 Period.Emergency = 500
+robot = "P3Bot"
 
 Ice.Warn.Connections = "0"
 Ice.Trace.Network = "0"
