@@ -9,6 +9,8 @@ Period.Compute = 25
 Period.Emergency = 500
 robot = "P3Bot"
 
+Component.Debug.Verbose = true
+
 Ice.Warn.Connections = "0"
 Ice.Trace.Network = "0"
 Ice.Trace.Protocol = "0"

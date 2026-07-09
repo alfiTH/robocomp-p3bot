@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 #
-#    Copyright (C) 2025 by YOUR NAME HERE
+#    Copyright (C) 2026 by Alejandro Torrejón  Harto
 #
 #    This file is part of RoboComp
 #
@@ -29,6 +29,8 @@ from rich.table import Table
 # from rich.live import Live
 from collections import deque
 
+import os
+
 from genericworker import *
 import interfaces as ifaces
 import math
@@ -48,6 +50,13 @@ import numpy as np
 
 SCALE = 0.001
 console = Console(highlight=False)
+
+try:
+    import setproctitle
+    setproctitle.setproctitle(os.path.basename(os.getcwd()))
+except:
+    pass
+
 # live = Live(console=console, refresh_per_second=10)
 
 
@@ -142,6 +151,7 @@ class SpecificWorker(GenericWorker):
             #region getGoal
             self.goal_axes = [sg.Axes(0.1)]*self.num_arms
             self.deadManButton = [False]*2
+            self.homeButton = [False]*2
             self.gripperOpening = [0]*2
             self.target = [None]*self.num_arms
             self.poseController = [np.array((0,0,0,0,0,0))]*2
@@ -240,42 +250,44 @@ class SpecificWorker(GenericWorker):
             R = q.SE3()
             self.pose = None
             self.p3bot.base = T *self.bodyOffset * R
+        
         for arm in range(self.num_arms):
             self.p3bot.q[self.extra_axis + arm * 7 : self.extra_axis + 7 + arm * 7] = self.get_joints(arm)
+            self.update_collisions_tool(self.p3bot, arm)
         t2 = time()
 
         # self.update_collisions(self.p3bot.base)
         #Go to target
         for arm in range(self.num_arms):
-            if self.deadManButton[arm]:
-                self.change_target(arm, self.poseController[arm][:3], self.poseController[arm][3:])
-                self.update_collisions_tool(self.p3bot, arm)
+            if  not self.homeButton[arm]:
+                if self.deadManButton[arm]:
+                    self.change_target(arm, self.poseController[arm][:3], self.poseController[arm][3:])
 
-                if self.directKinematic:                
-                    arrived, qd = self.direct_kinematic_robot(self.p3bot, arm, self.target[arm].A)
-                else:
-                    arrived, qd, num_collisions = self.step_robot(self.p3bot, arm, self.target[arm].A, self.collisions_tool[arm])
-                    self.haptics[arm] = num_collisions
+                    if self.directKinematic:                
+                        arrived, qd = self.direct_kinematic_robot(self.p3bot, arm, self.target[arm].A)
+                    else:
+                        arrived, qd, num_collisions = self.step_robot(self.p3bot, arm, self.target[arm].A, self.collisions_tool[arm])
+                        self.haptics[arm] = num_collisions
 
-                # qd[2:] = [0]*(len(qd)-2)
+                    # qd[2:] = [0]*(len(qd)-2)
 
-                #Move motors
-                if qd is not None:
-                    self.set_velocity_joints(arm, qd)
+                    #Move motors
+                    if qd is not None:
+                        self.set_velocity_joints(arm, qd)
+                        
+                    if arrived:
+                        print(f"arm {arm} ARRIBEEEEEDDDD")
+                        self.set_velocity_joints(arm, [0]*7)
                     
-                if arrived:
-                    print(f"arm {arm} ARRIBEEEEEDDDD")
+                    if not self.simulated:
+                        try:
+                            self.kinova_arms[arm].setGripperPos(self.gripperOpening[arm])
+                        except Exception as e:
+                            console.print_exception()
+                    
+                else:
                     self.set_velocity_joints(arm, [0]*7)
-                
-                if not self.simulated:
-                    try:
-                        self.kinova_arms[arm].setGripperPos(self.gripperOpening[arm])
-                    except Exception as e:
-                        console.print_exception()
-                
-            else:
-                self.set_velocity_joints(arm, [0]*7)
-                self.haptics[arm] = 0
+                    self.haptics[arm] = 0
 
         self.env.step(0.05)
         t3 = time()
@@ -440,7 +452,7 @@ class SpecificWorker(GenericWorker):
         except Exception as e:
             console.print(Text(f"Failed to get joint angles: {e}", "red"))
             console.print_exception()
-            return []
+            return [0]*7
         
     def update_collisions(self, pose:sm.SE3.Trans):
         for i in range(len(self.collisions)):
@@ -602,9 +614,24 @@ class SpecificWorker(GenericWorker):
     # IMPLEMENTATION of sendDataReceiveHaptics method from VRController interface
     #
     def VRController_sendDataReceiveHaptics(self, head, left, right):
+        aux = [right.aButton, left.aButton]
+        for arm in range(2):
+            if not self.homeButton[arm] and aux[arm]:
+                if self.simulated:
+                    self.p3bot.q[self.extra_axis + arm * 7 : self.extra_axis + 7 + arm * 7] = self.pick[arm]
+                else:
+                    self.set_velocity_joints(arm, [0]*7)
+                    angles = ifaces.RoboCompKinovaArm.TJointAngles(jointAngles=ifaces.RoboCompKinovaArm.Angles(np.array(self.pick[arm])))
+                    self.kinova_arms[arm].moveJointsWithAngleAsync(angles)
+            elif self.homeButton[arm] and not aux[arm]:
+                self.kinova_arms[arm].stopArmAsync()
+            
+
+        self.homeButton = aux
 
         self.deadManButton[1] = left.grab>0.8
         self.gripperOpening[1] = round(left.trigger, 1)
+       
         self.deadManButton[0] = right.grab>0.8
         self.gripperOpening[0] = round(right.trigger, 1)
 
@@ -635,6 +662,7 @@ class SpecificWorker(GenericWorker):
     # RoboCompKinovaArm.void self.kinovaarm_proxy.openGripper()
     # RoboCompKinovaArm.void self.kinovaarm_proxy.setCenterOfTool(TPose pose, ArmJoints referencedTo)
     # RoboCompKinovaArm.bool self.kinovaarm_proxy.setGripperPos(float pos)
+    # RoboCompKinovaArm.void self.kinovaarm_proxy.stopArm()
 
     ######################
     # From the RoboCompKinovaArm you can use this types:
@@ -659,6 +687,7 @@ class SpecificWorker(GenericWorker):
     # RoboCompKinovaArm.void self.kinovaarm1_proxy.openGripper()
     # RoboCompKinovaArm.void self.kinovaarm1_proxy.setCenterOfTool(TPose pose, ArmJoints referencedTo)
     # RoboCompKinovaArm.bool self.kinovaarm1_proxy.setGripperPos(float pos)
+    # RoboCompKinovaArm.void self.kinovaarm1_proxy.stopArm()
 
     ######################
     # From the RoboCompKinovaArm you can use this types:
