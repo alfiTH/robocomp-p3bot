@@ -1,0 +1,14 @@
+import "Navigator.idsl";
+import "OmniRobot.idsl";
+
+Component simpleNavigator
+{
+    Communications
+    {
+        implements Navigator;
+        requires OmniRobot;
+
+    };
+    language Cpp11;
+};
+
